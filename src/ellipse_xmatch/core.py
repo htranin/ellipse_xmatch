@@ -9,7 +9,43 @@ from astropy.table import Table
 from astropy.coordinates import SkyCoord
 import time
 
-__all__ = ["in_ellipse", "crossmatch_ellipses", "crossmatch_fits"]
+__all__ = ["in_ellipse", "ellipse_separation", "crossmatch_ellipses", "crossmatch_fits"]
+
+
+def ellipse_separation(gal_c, pt_c, r1, r2, pa_deg):
+    """
+    Normalized elliptical separation (vectorized).
+
+    Computes the angular distance from gal_c to pt_c divided by the
+    galaxy ellipse's radius in that same direction, i.e. how far along
+    the ray from the galaxy center to the point the ellipse boundary
+    falls. Values <= 1 are inside the ellipse, > 1 are outside.
+
+    Parameters
+    ----------
+    gal_c, pt_c : SkyCoord
+        Equal-length arrays of paired candidate (galaxy, point) coordinates.
+    r1, r2 : array-like
+        Semi-major / semi-minor axes, in arcsec.
+    pa_deg : array-like
+        Position angle in degrees, East of North convention.
+        If your PA is defined the other way round, negate it before calling.
+
+    Returns
+    -------
+    numpy.ndarray of float
+        Normalized separation: 0 at the galaxy center, 1 on the ellipse
+        boundary, >1 outside.
+    """
+    dlon, dlat = gal_c.spherical_offsets_to(pt_c)  # dlon ~ East, dlat ~ North
+    dE = dlon.to(u.arcsec).value
+    dN = dlat.to(u.arcsec).value
+
+    pa = np.deg2rad(np.asarray(pa_deg, dtype=float))
+    x_major = dE * np.sin(pa) + dN * np.cos(pa)
+    y_minor = dE * np.cos(pa) - dN * np.sin(pa)
+
+    return np.sqrt((x_major / r1) ** 2 + (y_minor / r2) ** 2)
 
 
 def in_ellipse(gal_c, pt_c, r1, r2, pa_deg):
@@ -31,18 +67,11 @@ def in_ellipse(gal_c, pt_c, r1, r2, pa_deg):
     numpy.ndarray of bool
         True where pt_c falls inside the ellipse centered on gal_c.
     """
-    dlon, dlat = gal_c.spherical_offsets_to(pt_c)  # dlon ~ East, dlat ~ North
-    dE = dlon.to(u.arcsec).value
-    dN = dlat.to(u.arcsec).value
-
-    pa = np.deg2rad(np.asarray(pa_deg, dtype=float))
-    x_major = dE * np.sin(pa) + dN * np.cos(pa)
-    y_minor = dE * np.cos(pa) - dN * np.sin(pa)
-
-    return (x_major / r1) ** 2 + (y_minor / r2) ** 2 <= 1.0
+    return ellipse_separation(gal_c, pt_c, r1, r2, pa_deg) <= 1.0
 
 
-def crossmatch_ellipses(gal_coord, pt_coord, R1, R2, PA, nbins=20, verbose=False, t0=time.time()):
+def crossmatch_ellipses(gal_coord, pt_coord, R1, R2, PA, dlr_factor=1.0,
+                         nbins=20, verbose=False, t0=time.time()):
     """
     Find every (point, galaxy) pair where the point falls inside the
     galaxy's ellipse, using geomspace R1 bins + search_around_sky.
@@ -57,6 +86,11 @@ def crossmatch_ellipses(gal_coord, pt_coord, R1, R2, PA, nbins=20, verbose=False
         Semi-major / semi-minor axes, in arcsec. Same length as gal_coord.
     PA : array-like
         Position angle, degrees, East of North. Same length as gal_coord.
+    dlr_factor : float, optional
+        Directional light radius (DLR) scale factor applied to both R1 and
+        R2 before matching, growing or shrinking every galaxy's ellipse
+        (default 1.0, i.e. unchanged). A factor of ~1.5 is recommended to
+        avoid missing transients hosted with large offsets.
     nbins : int, optional
         Number of geomspace bins in R1 (default 20).
     verbose : bool, optional
@@ -66,19 +100,24 @@ def crossmatch_ellipses(gal_coord, pt_coord, R1, R2, PA, nbins=20, verbose=False
     -------
     gal_idx, pt_idx : numpy.ndarray of int
         Indices into gal_coord / pt_coord for every valid association.
+    separation : numpy.ndarray of float
+        Normalized elliptical separation for each association (0 at the
+        galaxy center, 1 on the ellipse boundary); see `ellipse_separation`.
     """
-    R1 = np.asarray(R1, dtype=float)
-    R2 = np.asarray(R2, dtype=float)
+    R1 = np.asarray(R1, dtype=float) * dlr_factor
+    R2 = np.asarray(R2, dtype=float) * dlr_factor
     PA = np.asarray(PA, dtype=float)
 
     r1_pos = R1[R1 > 0]
     if r1_pos.size == 0:
-        return np.array([], dtype=int), np.array([], dtype=int)
+        return (np.array([], dtype=int), np.array([], dtype=int),
+                np.array([], dtype=float))
 
     bin_edges = np.geomspace(r1_pos.min(), R1.max(), nbins + 1)
 
     match_gal_idx = []
     match_pt_idx = []
+    match_sep = []
 
     for i in range(nbins):
         lo, hi = bin_edges[i], bin_edges[i + 1]
@@ -108,24 +147,34 @@ def crossmatch_ellipses(gal_coord, pt_coord, R1, R2, PA, nbins=20, verbose=False
             continue
 
         gal_idx = sub_idx[idx_g]
-        keep = in_ellipse(gal_coord[gal_idx], pt_coord[idx_p],
-                           R1[gal_idx], R2[gal_idx], PA[gal_idx])
+        sep = ellipse_separation(gal_coord[gal_idx], pt_coord[idx_p],
+                                  R1[gal_idx], R2[gal_idx], PA[gal_idx])
+        keep = sep <= 1.0
 
         match_gal_idx.append(gal_idx[keep])
         match_pt_idx.append(idx_p[keep])
+        match_sep.append(sep[keep])
 
     if match_gal_idx:
-        return np.concatenate(match_gal_idx), np.concatenate(match_pt_idx)
-    return np.array([], dtype=int), np.array([], dtype=int)
+        return (np.concatenate(match_gal_idx), np.concatenate(match_pt_idx),
+                np.concatenate(match_sep))
+    return np.array([], dtype=int), np.array([], dtype=int), np.array([], dtype=float)
 
 
 def crossmatch_fits(gal_fits, pts_fits, output_fits,
                      gal_ra_col="gal_ra", gal_dec_col="gal_dec",
                      gal_r1_col="R1", gal_r2_col="R2", gal_pa_col="PA",
                      pt_ra_col="ra", pt_dec_col="dec",
-                     nbins=20, verbose=False):
+                     dlr_factor=1.0, nbins=20, verbose=False):
     """
     Convenience wrapper: read two FITS tables, crossmatch, write result.
+
+    Parameters
+    ----------
+    dlr_factor : float, optional
+        Directional light radius (DLR) scale factor applied to both R1 and
+        R2 before matching (default 1.0). A factor of ~1.5 is recommended
+        to avoid missing transients hosted with large offsets.
 
     Returns the result Table (also written to output_fits).
     """
@@ -155,8 +204,9 @@ def crossmatch_fits(gal_fits, pts_fits, output_fits,
         print(f"{len(gal)} galaxies, {len(pts)} points")
         print(f"Elapsed time: {time.time()-t0:.0f}s")
 
-    gal_idx, pt_idx = crossmatch_ellipses(gal_coord, pt_coord, R1, R2, PA,
-                                           nbins=nbins, verbose=verbose, t0=t0)
+    gal_idx, pt_idx, separation = crossmatch_ellipses(
+        gal_coord, pt_coord, R1, R2, PA,
+        dlr_factor=dlr_factor, nbins=nbins, verbose=verbose, t0=t0)
 
     result = Table()
     result["point_idx"] = pt_idx
@@ -165,9 +215,11 @@ def crossmatch_fits(gal_fits, pts_fits, output_fits,
     result["point_dec"] = pt_coord.dec.deg[pt_idx]
     result["gal_ra"] = gal_coord.ra.deg[gal_idx]
     result["gal_dec"] = gal_coord.dec.deg[gal_idx]
-    result["R1"] = R1[gal_idx]
-    result["R2"] = R2[gal_idx]
+    result["R1"] = R1[gal_idx] * dlr_factor
+    result["R2"] = R2[gal_idx] * dlr_factor
     result["PA"] = PA[gal_idx]
+    result["separation"] = separation
+    result.meta["DLRFACT"] = dlr_factor
 
     result.write(output_fits, overwrite=True)
     if verbose:
