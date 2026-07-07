@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ellipse-xmatch"
+version = "0.1.0"
+description = "Crossmatch sky coordinates against a galaxy catalog with elliptical extents"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "numpy",
+    "astropy",
+]
+
+[project.scripts]
+ellipse-xmatch = "ellipse_xmatch.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
