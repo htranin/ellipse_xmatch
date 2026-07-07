@@ -7,6 +7,7 @@ import numpy as np
 import astropy.units as u
 from astropy.table import Table
 from astropy.coordinates import SkyCoord
+import time
 
 __all__ = ["in_ellipse", "crossmatch_ellipses", "crossmatch_fits"]
 
@@ -41,7 +42,7 @@ def in_ellipse(gal_c, pt_c, r1, r2, pa_deg):
     return (x_major / r1) ** 2 + (y_minor / r2) ** 2 <= 1.0
 
 
-def crossmatch_ellipses(gal_coord, pt_coord, R1, R2, PA, nbins=20, verbose=False):
+def crossmatch_ellipses(gal_coord, pt_coord, R1, R2, PA, nbins=20, verbose=False, t0=time.time()):
     """
     Find every (point, galaxy) pair where the point falls inside the
     galaxy's ellipse, using geomspace R1 bins + search_around_sky.
@@ -101,7 +102,8 @@ def crossmatch_ellipses(gal_coord, pt_coord, R1, R2, PA, nbins=20, verbose=False
         if verbose:
             print(f"bin {i:2d}  R1 in [{lo:8.2f}, {hi:8.2f}] arcsec  "
                   f"n_gal={sel.sum():7d}  candidate pairs={len(idx_g)}")
-
+            print(f"Elapsed time: {time.time()-t0:.0f}s")
+            
         if len(idx_g) == 0:
             continue
 
@@ -127,9 +129,19 @@ def crossmatch_fits(gal_fits, pts_fits, output_fits,
 
     Returns the result Table (also written to output_fits).
     """
+    t0 = time.time()
     gal = Table.read(gal_fits)
     pts = Table.read(pts_fits)
-
+    # reduce search area if possible
+    if pts[pt_ra_col].min()>60:
+        gal = gal[gal[gal_ra_col]>pts[pt_ra_col].min()-10]
+    if pts[pt_ra_col].max()<300:
+        gal = gal[gal[gal_ra_col]<pts[pt_ra_col].max()+10]
+    if pts[pt_dec_col].min()>-50:
+        gal = gal[gal[gal_dec_col]>pts[pt_dec_col].min()-10]
+    if pts[pt_dec_col].max()<50:
+        gal = gal[gal[gal_dec_col]<pts[pt_dec_col].max()+10]
+    
     gal_coord = SkyCoord(ra=np.asarray(gal[gal_ra_col]) * u.deg,
                           dec=np.asarray(gal[gal_dec_col]) * u.deg)
     pt_coord = SkyCoord(ra=np.asarray(pts[pt_ra_col]) * u.deg,
@@ -138,12 +150,13 @@ def crossmatch_fits(gal_fits, pts_fits, output_fits,
     R1 = np.asarray(gal[gal_r1_col], dtype=float)
     R2 = np.asarray(gal[gal_r2_col], dtype=float)
     PA = np.asarray(gal[gal_pa_col], dtype=float)
-
+    
     if verbose:
         print(f"{len(gal)} galaxies, {len(pts)} points")
+        print(f"Elapsed time: {time.time()-t0:.0f}s")
 
     gal_idx, pt_idx = crossmatch_ellipses(gal_coord, pt_coord, R1, R2, PA,
-                                           nbins=nbins, verbose=verbose)
+                                           nbins=nbins, verbose=verbose, t0=t0)
 
     result = Table()
     result["point_idx"] = pt_idx
@@ -159,5 +172,6 @@ def crossmatch_fits(gal_fits, pts_fits, output_fits,
     result.write(output_fits, overwrite=True)
     if verbose:
         print(f"Total associations: {len(result)} -> written to {output_fits}")
-
+        print(f"Elapsed time: {time.time()-t0:.0f}s")
+        
     return result
