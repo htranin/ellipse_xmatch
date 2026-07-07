@@ -1,0 +1,2 @@
+[console_scripts]
+ellipse-xmatch = ellipse_xmatch.cli:main
