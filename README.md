@@ -54,7 +54,7 @@ gal_idx, pt_idx = crossmatch_ellipses(gal_coord, pt_coord, R1, R2, PA, nbins=20)
 ## Use from the command line
 
 ```bash
-ellipse-xmatch galaxies.fits points.fits matches.fits \
+ellipse-xmatch regalade_v2.fits tns.csv matches.fits \
     --gal-ra gal_ra --gal-dec gal_dec --r1 R1 --r2 R2 --pa PA \
     --pt-ra ra --pt-dec dec --nbins 20 -v
 ```
