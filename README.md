@@ -63,3 +63,6 @@ ellipse-xmatch galaxies.fits points.fits matches.fits \
   `ellipse_separation()`.
 - **PA convention**: degrees East of North. If your PA is defined the
   opposite way, negate it before passing it in.
+- **File formats**: `gal_fits`, `pts_fits`, and `output_fits` accept any
+  format `astropy.table.Table.read`/`.write` supports (FITS, CSV, ECSV,
+  HDF5, ...), inferred from the file extension — not just FITS.
