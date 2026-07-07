@@ -30,7 +30,7 @@ pip install /path/to/ellipse_xmatch
 Or straight from a git repo, once you push this to GitHub:
 
 ```bash
-pip install git+https://github.com/yourname/ellipse-xmatch.git
+pip install git+https://github.com/htranin/ellipse_xmatch.git
 ```
 
 ## Use as a library
