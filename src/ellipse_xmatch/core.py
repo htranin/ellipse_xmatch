@@ -209,15 +209,21 @@ def crossmatch_fits(gal_fits, pts_fits, output_fits,
         dlr_factor=dlr_factor, nbins=nbins, verbose=verbose, t0=t0)
 
     result = Table()
-    result["point_idx"] = pt_idx
     result["gal_idx"] = gal_idx
-    result["point_ra"] = pt_coord.ra.deg[pt_idx]
-    result["point_dec"] = pt_coord.dec.deg[pt_idx]
-    result["gal_ra"] = gal_coord.ra.deg[gal_idx]
-    result["gal_dec"] = gal_coord.dec.deg[gal_idx]
-    result["R1"] = R1[gal_idx] * dlr_factor
-    result["R2"] = R2[gal_idx] * dlr_factor
-    result["PA"] = PA[gal_idx]
+    result["point_idx"] = pt_idx
+    for col in gal.colnames:
+        if col == gal_ra_col:
+            out_col = "gal_ra"
+        elif col == gal_dec_col:
+            out_col = "gal_dec"
+        else:
+            out_col = col
+        result[out_col] = gal[col][gal_idx]
+    # reflect the dlr_factor-scaled radii actually used for matching
+    result[gal_r1_col] = R1[gal_idx] * dlr_factor
+    result[gal_r2_col] = R2[gal_idx] * dlr_factor
+    for col in pts.colnames:
+        result[col] = pts[col][pt_idx]
     result["separation"] = separation
     result.meta["DLRFACT"] = dlr_factor
 
