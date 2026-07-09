@@ -61,8 +61,7 @@ ellipse-xmatch galaxies.fits points.fits matches.fits \
   transients hosted with large offsets.
 - **`separation` column**: for each match, the point's angular distance
   from the galaxy center divided by the ellipse's radius in that
-  direction — 0 at the center, 1 on the boundary. Exposed directly via
-  `ellipse_separation()`.
+  direction — 0 at the center, 1 on the boundary. 
 - **PA convention**: degrees East of North. If your PA is defined the
   opposite way, negate it before passing it in.
 - **File formats**: `gal_fits`, `pts_fits`, and `output_fits` accept any
