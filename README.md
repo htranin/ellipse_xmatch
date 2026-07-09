@@ -24,6 +24,8 @@ Need a `gal_fits` input? Download the REGALADE catalog (v2, July 6th 2026,
 reduced number of columns, 4GB):
 [Google Drive link](https://drive.google.com/file/d/1dvnjt-0Y4zN0hcy67QIlwGXMx-tHNgoP/view?usp=sharing)
 
+(Full documentation available in [this repo](https://github.com/htranin/regalade))
+
 ## Use as a library
 
 ```python
