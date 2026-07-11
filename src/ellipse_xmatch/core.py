@@ -223,7 +223,8 @@ def crossmatch_fits(gal_fits, pts_fits, output_fits,
     result[gal_r1_col] = R1[gal_idx] * dlr_factor
     result[gal_r2_col] = R2[gal_idx] * dlr_factor
     for col in pts.colnames:
-        result[col] = pts[col][pt_idx]
+        out_col = f"pts_{col}" if col in result.colnames else col
+        result[out_col] = pts[col][pt_idx]
     result["separation"] = separation
     result.meta["DLRFACT"] = dlr_factor
 
