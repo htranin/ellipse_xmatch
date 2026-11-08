@@ -161,6 +161,41 @@ def crossmatch_ellipses(gal_coord, pt_coord, R1, R2, PA, dlr_factor=1.0,
     return np.array([], dtype=int), np.array([], dtype=int), np.array([], dtype=float)
 
 
+def _is_fits(path):
+    return str(path).lower().endswith((".fits", ".fit", ".fz", ".fits.gz", ".fit.gz"))
+
+
+def _read_table(path, encoding=None):
+    """
+    Table.read(path), passing `encoding` only to text tables (csv, ecsv, ...).
+
+    The FITS reader does not take an `encoding` argument, so it is not passed
+    for files that look like FITS (.fits, .fit, .fz, optionally .gz). This lets
+    one call mix, e.g., a FITS galaxy catalog with a csv list of points.
+    """
+    if encoding is not None and not _is_fits(path):
+        return Table.read(path, encoding=encoding)
+    return Table.read(path)
+
+
+def _write_table(table, path, encoding=None):
+    """
+    table.write(path, overwrite=True), as `encoding` text for csv, ecsv, ... outputs.
+
+    astropy's text writers take no `encoding` argument, so the file is opened
+    here and the table written to it. FITS outputs (and files whose format
+    cannot be inferred from the name) are written as usual.
+    """
+    if encoding is not None and not _is_fits(path):
+        from astropy.io import registry
+        formats = registry.identify_format("write", Table, str(path), None, [], {})
+        if formats:
+            with open(path, "w", encoding=encoding, newline="") as f:
+                table.write(f, format=formats[0])
+            return
+    table.write(path, overwrite=True)
+
+
 def crossmatch_fits(gal_fits, pts_fits, output_fits,
                      gal_ra_col="gal_ra", gal_dec_col="gal_dec",
                      gal_r1_col="R1", gal_r2_col="R2", gal_pa_col="PA",
@@ -176,17 +211,18 @@ def crossmatch_fits(gal_fits, pts_fits, output_fits,
         R2 before matching (default 1.0). A factor of ~1.5 is recommended
         to avoid missing transients hosted with large offsets.
     encoding : str, optional
-        Text encoding to use when gal_fits/pts_fits are actually ascii/csv
-        tables rather than binary FITS (forwarded to Table.read). Left
-        unset, astropy/Python pick the platform default, which on Windows
-        is not UTF-8. Ignored for binary FITS input.
+        Text encoding to use when gal_fits/pts_fits/output_fits are ascii/csv
+        tables rather than binary FITS (read and written as text in this
+        encoding). Left unset, astropy/Python pick the platform default, which
+        on Windows is not UTF-8. It is not used for files named *.fits, *.fit,
+        *.fz (or *.fits.gz), so a FITS catalog and a csv list of points can
+        be mixed.
 
     Returns the result Table (also written to output_fits).
     """
     t0 = time.time()
-    read_kwargs = {"encoding": encoding} if encoding is not None else {}
-    gal = Table.read(gal_fits, **read_kwargs)
-    pts = Table.read(pts_fits, **read_kwargs)
+    gal = _read_table(gal_fits, encoding)
+    pts = _read_table(pts_fits, encoding)
     # reduce search area if possible
     if pts[pt_ra_col].min()>60:
         gal = gal[gal[gal_ra_col]>pts[pt_ra_col].min()-10]
@@ -234,7 +270,7 @@ def crossmatch_fits(gal_fits, pts_fits, output_fits,
     result["separation"] = separation
     result.meta["DLRFACT"] = dlr_factor
 
-    result.write(output_fits, overwrite=True)
+    _write_table(result, output_fits, encoding)
     if verbose:
         print(f"Total associations: {len(result)} -> written to {output_fits}")
         print(f"Elapsed time: {time.time()-t0:.0f}s")

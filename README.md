@@ -67,3 +67,7 @@ ellipse-xmatch galaxies.fits points.fits matches.fits \
 - **File formats**: `gal_fits`, `pts_fits`, and `output_fits` accept any
   format `astropy.table.Table.read`/`.write` supports (FITS, CSV, ECSV,
   HDF5, ...), inferred from the file extension — not just FITS.
+- **Encoding**: for text tables (CSV, ...) pass `encoding="utf-8"` (`--encoding utf-8` on the
+  command line) to read and write them in that encoding; the default is the platform's, which on
+  Windows is not UTF-8. It is not used for FITS files, so a FITS catalog can be matched against a
+  CSV list of points with one call.
