@@ -37,6 +37,10 @@ def main():
                          "with large offsets.")
     p.add_argument("--nbins", type=int, default=20,
                     help="Number of geomspace R1 bins (default: 20)")
+    p.add_argument("--encoding", default=None,
+                    help="Text encoding for gal_fits/pts_fits when they are "
+                         "actually ascii/csv tables, not binary FITS (e.g. "
+                         "utf-8). Ignored for binary FITS input.")
     p.add_argument("-v", "--verbose", action="store_true")
 
     args = p.parse_args()
@@ -47,6 +51,7 @@ def main():
         gal_r1_col=args.r1, gal_r2_col=args.r2, gal_pa_col=args.pa,
         pt_ra_col=args.pt_ra, pt_dec_col=args.pt_dec,
         dlr_factor=args.dlr_factor, nbins=args.nbins, verbose=args.verbose,
+        encoding=args.encoding,
     )
 
 

@@ -165,7 +165,7 @@ def crossmatch_fits(gal_fits, pts_fits, output_fits,
                      gal_ra_col="gal_ra", gal_dec_col="gal_dec",
                      gal_r1_col="R1", gal_r2_col="R2", gal_pa_col="PA",
                      pt_ra_col="ra", pt_dec_col="dec",
-                     dlr_factor=1.0, nbins=20, verbose=False):
+                     dlr_factor=1.0, nbins=20, verbose=False, encoding=None):
     """
     Convenience wrapper: read two FITS tables, crossmatch, write result.
 
@@ -175,12 +175,18 @@ def crossmatch_fits(gal_fits, pts_fits, output_fits,
         Directional light radius (DLR) scale factor applied to both R1 and
         R2 before matching (default 1.0). A factor of ~1.5 is recommended
         to avoid missing transients hosted with large offsets.
+    encoding : str, optional
+        Text encoding to use when gal_fits/pts_fits are actually ascii/csv
+        tables rather than binary FITS (forwarded to Table.read). Left
+        unset, astropy/Python pick the platform default, which on Windows
+        is not UTF-8. Ignored for binary FITS input.
 
     Returns the result Table (also written to output_fits).
     """
     t0 = time.time()
-    gal = Table.read(gal_fits)
-    pts = Table.read(pts_fits)
+    read_kwargs = {"encoding": encoding} if encoding is not None else {}
+    gal = Table.read(gal_fits, **read_kwargs)
+    pts = Table.read(pts_fits, **read_kwargs)
     # reduce search area if possible
     if pts[pt_ra_col].min()>60:
         gal = gal[gal[gal_ra_col]>pts[pt_ra_col].min()-10]
